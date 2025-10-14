@@ -1,0 +1,15 @@
+#stress-level-container {
+  background-size: 10% 10%;
+  background-image: linear-gradient(to right, oklch(26.8% 0.007 34.298) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(26.8% 0.007 34.298) 1px, transparent 1px);
+}
+
+#stress-level-indicator {
+  background: repeating-linear-gradient(
+    45deg,
+    oklch(34.846% 0.00004 271.152 / 0.2) 0,
+    oklch(34.846% 0.00004 271.152 / 0.2) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}

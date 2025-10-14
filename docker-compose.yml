@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  stress-tracker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:8000
+    ports:
+      - "8000:8000"
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - DB_PATH=/app/data/stress-tracker.db
+      - COOKIE_SECRET=change-this-in-production-environment
+      - FRONTEND_URL=http://localhost:8000
+      - LOG_LEVEL=info
+      - STRESS_COOLDOWN_MS=300000
+      - SUPERSTRESS_COOLDOWN_MS=86400000
+    volumes:
+      - stress-tracker-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  stress-tracker-data:
+    # This creates a named volume for persisting the SQLite database
