@@ -6,6 +6,7 @@
 
 const fp = require('fastify-plugin');
 const config = require('../config');
+const path = require('path');
 
 /**
  * Register all plugins with the Fastify instance
@@ -21,6 +22,29 @@ async function plugins(fastify, _options) {
     hook: 'onRequest',
     parseOptions: {},
   });
+
+  // Serve static frontend files if in production environment
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      // In Docker container, frontend is at /app/frontend/dist
+      const staticPath =
+        process.env.NODE_ENV === 'production'
+          ? '/app/frontend/dist'
+          : path.join(__dirname, '../../../frontend/build'); // For local development
+      fastify.log.info(`Serving frontend static files from: ${staticPath}`);
+
+      // Register static file serving
+      await fastify.register(require('@fastify/static'), {
+        root: staticPath,
+        prefix: '/',
+        wildcard: false,
+      });
+
+      // We'll set the notFoundHandler later to handle both API and SPA routes
+    } catch (err) {
+      fastify.log.error(`Failed to serve static files: ${err.message}`);
+    }
+  }
 
   // Register database plugin
   await fastify.register(require('../db/plugin'));
@@ -59,9 +83,28 @@ async function plugins(fastify, _options) {
     });
   });
 
-  // Not found handler
+  // Combined not found handler for both API and SPA routes
   fastify.setNotFoundHandler((request, reply) => {
-    reply.code(404).send({
+    // For API routes, return proper 404 JSON response
+    if (request.url.startsWith('/api/')) {
+      return reply.code(404).send({
+        error: 'Not Found',
+        message: `API route ${request.method}:${request.url} not found`,
+      });
+    }
+
+    // For non-API routes in production, serve the index.html for client-side routing
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        const staticPath = '/app/frontend/dist'; // Path in Docker container
+        return reply.sendFile('index.html', staticPath);
+      } catch (err) {
+        fastify.log.error(`Failed to serve index.html: ${err.message}`);
+      }
+    }
+
+    // Fallback for development or if the above fails
+    return reply.code(404).send({
       error: 'Not Found',
       message: `Route ${request.method}:${request.url} not found`,
     });

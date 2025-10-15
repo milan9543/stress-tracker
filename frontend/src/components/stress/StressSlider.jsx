@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { stressApi } from '../../utils/api';
+import { requestNotificationPermission, sendBrowserNotification } from '../../utils/notifications';
 import './stress-slider.css';
 
 export default function StressSlider({ onSubmit }) {
@@ -12,6 +13,8 @@ export default function StressSlider({ onSubmit }) {
   const [cooldown, setCooldown] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [thumbSize, setThumbSize] = useState('28px');
+  const [notificationPermission, setNotificationPermission] = useState(null);
+  const notificationScheduled = useRef(false);
 
   // Handle cooldown time from server
   useEffect(() => {
@@ -46,9 +49,27 @@ export default function StressSlider({ onSubmit }) {
     }
   }, [user]);
 
-  // Handle cooldown timer
+  // Handle cooldown timer and notification
   useEffect(() => {
-    if (!cooldown) return;
+    if (!cooldown) {
+      // Reset notification scheduled flag when cooldown is complete
+      notificationScheduled.current = false;
+      return;
+    }
+
+    // Schedule notification when cooldown is about to expire (if not already scheduled)
+    if (cooldown === 10 && notificationPermission === 'granted' && !notificationScheduled.current) {
+      notificationScheduled.current = true;
+
+      // Schedule notification to fire when cooldown expires
+      setTimeout(() => {
+        sendBrowserNotification('Stress Tracker', {
+          body: 'Your cooldown period has expired! You can now record a new stress level.',
+          icon: '/favicon.ico', // Assuming you have a favicon
+          tag: 'cooldown-expired',
+        });
+      }, 10000); // Schedule for 10 seconds later when cooldown will be 0
+    }
 
     const timer = setInterval(() => {
       setCooldown((prevCooldown) => {
@@ -61,7 +82,7 @@ export default function StressSlider({ onSubmit }) {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [cooldown]);
+  }, [cooldown, notificationPermission]);
 
   // Handle responsive thumb size
   useEffect(() => {
@@ -79,12 +100,34 @@ export default function StressSlider({ onSubmit }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Request notification permission when component mounts
+  useEffect(() => {
+    const checkPermission = async () => {
+      const permission = await requestNotificationPermission();
+      setNotificationPermission(permission);
+    };
+
+    checkPermission();
+  }, []);
+
   const handleSubmit = async () => {
     if (!user || cooldown > 0 || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
-      await stressApi.recordStress(stressLevel);
+      const response = await stressApi.recordStress(stressLevel);
+
+      // Reset notification scheduled flag when submitting a new stress level
+      notificationScheduled.current = false;
+
+      // Check if we received a funny message from OpenAI
+      if (response && response.funnyMessage) {
+        // Import the showPersistentFunnyToast function
+        const { showPersistentFunnyToast } = await import('../../utils/notifications');
+
+        // Show persistent toast with funny message
+        showPersistentFunnyToast(response.funnyMessage);
+      }
 
       // Refresh user data to get updated cooldown information
       await refreshUser();
@@ -101,7 +144,7 @@ export default function StressSlider({ onSubmit }) {
   };
 
   return (
-    <div className="bg-stone-900 rounded-xl shadow-lg shadow-stone-950/50 p-4 md:p-6 mb-4 md:mb-6 border border-stone-800/50 text-stone-100 backdrop-blur-sm">
+    <div className="bg-stone-900 rounded-xl shadow-lg shadow-stone-950/50 p-4 md:p-6 mb-4 md:mb-6 border border-stone-800/50 text-stone-100 backdrop-blur-md">
       <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gradient bg-gradient-to-r from-purple-400 to-violet-300">
         Track Your Stress
       </h2>

@@ -6,18 +6,11 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=http://localhost:8000
+        - VITE_API_URL=${VITE_API_URL}
+    env_file:
+      - ./.env
     ports:
       - "8000:8000"
-    environment:
-      - NODE_ENV=production
-      - PORT=8000
-      - DB_PATH=/app/data/stress-tracker.db
-      - COOKIE_SECRET=change-this-in-production-environment
-      - FRONTEND_URL=http://localhost:8000
-      - LOG_LEVEL=info
-      - STRESS_COOLDOWN_MS=300000
-      - SUPERSTRESS_COOLDOWN_MS=86400000
     volumes:
       - stress-tracker-data:/app/data
     restart: unless-stopped

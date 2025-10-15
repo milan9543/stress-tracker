@@ -96,8 +96,8 @@ async function authRoutes(fastify, _options) {
           reply.setCookie('session', existingSession.token, {
             path: '/',
             httpOnly: true,
-            sameSite: 'strict',
-            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'none', // Allow cross-origin requests
+            secure: false, // Allow non-secure requests for development
             maxAge: 7 * 24 * 60 * 60, // 7 days
           });
 
@@ -141,8 +141,8 @@ async function authRoutes(fastify, _options) {
       reply.setCookie('session', session.token, {
         path: '/',
         httpOnly: true,
-        sameSite: 'strict',
-        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'none', // Allow cross-origin requests
+        secure: false, // Allow non-secure requests for development
         maxAge: 7 * 24 * 60 * 60, // 7 days
       });
 
@@ -233,6 +233,10 @@ async function authRoutes(fastify, _options) {
       lastStressLevel,
       nextStressUpdateAvailableInSeconds,
       nextSuperStressUpdateAvailableInSeconds,
+      cooldownDurations: {
+        superstress: fastify.config.cooldown.superstress,
+        stressEntry: fastify.config.cooldown.stressEntry,
+      },
     };
   });
 

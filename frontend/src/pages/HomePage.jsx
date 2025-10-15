@@ -5,6 +5,7 @@ import UserProfile from '../components/auth/UserProfile';
 import StressSlider from '../components/stress/StressSlider';
 import SuperstressButton from '../components/stress/SuperstressButton';
 import { StressLevelContainer } from '../components/layout/StressLevelContainer';
+import { requestNotificationPermission } from '../utils/notifications';
 function HomePage() {
   const { user, loading, refreshUser } = useAuth();
 
@@ -20,6 +21,12 @@ function HomePage() {
     };
 
     fetchUserData();
+
+    // Request notification permission when component mounts
+    // This is a good place to request it since the HomePage is the main entry point
+    requestNotificationPermission().then((permission) => {
+      console.log('Notification permission status:', permission);
+    });
   }, []); // Empty dependency array ensures this runs only on mount
 
   if (loading) {

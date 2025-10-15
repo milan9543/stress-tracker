@@ -10,26 +10,32 @@
  * @param {Object} _options - Plugin options (unused)
  */
 async function routes(fastify, _options) {
-  // Health check route
-  fastify.get('/', async (_request, _reply) => {
-    return {
-      status: 'ok',
-      message: 'Stress Tracker API is running',
-      version: '1.0.0',
-    };
-  });
+  // Register all API routes under /api prefix
+  fastify.register(
+    async function apiRoutes(fastify, _options) {
+      // Health check route
+      fastify.get('/', async (_request, _reply) => {
+        return {
+          status: 'ok',
+          message: 'Stress Tracker API is running',
+          version: '1.0.0',
+        };
+      });
 
-  // Auth routes
-  fastify.register(require('./auth'), { prefix: '' });
+      // Auth routes
+      fastify.register(require('./auth'), { prefix: '' });
 
-  // Stress routes
-  fastify.register(require('./stress'), { prefix: '/stress' });
+      // Stress routes
+      fastify.register(require('./stress'), { prefix: '/stress' });
 
-  // Summary routes
-  fastify.register(require('./summary'));
+      // Summary routes
+      fastify.register(require('./summary'));
+    },
+    { prefix: '/api' }
+  );
 
-  // WebSocket routes
-  fastify.register(require('./ws'));
+  // WebSocket routes - also under /api prefix
+  fastify.register(require('./ws'), { prefix: '/api' });
 }
 
 module.exports = routes;

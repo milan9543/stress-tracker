@@ -1,12 +1,85 @@
 import toast from 'react-hot-toast';
 
 /**
+ * Request browser notification permission
+ * @returns {Promise<string>} Permission status ('granted', 'denied', or 'default')
+ */
+export const requestNotificationPermission = async () => {
+  if (!('Notification' in window)) {
+    console.log('This browser does not support desktop notifications');
+    return 'unsupported';
+  }
+
+  if (Notification.permission === 'granted') {
+    return 'granted';
+  }
+
+  if (Notification.permission !== 'denied') {
+    try {
+      const permission = await Notification.requestPermission();
+      return permission;
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+      return 'error';
+    }
+  }
+
+  return Notification.permission;
+};
+
+/**
+ * Send a browser notification
+ * @param {string} title - The notification title
+ * @param {Object} options - Notification options (body, icon, etc.)
+ * @returns {Notification|null} The notification object or null if not supported/permitted
+ */
+export const sendBrowserNotification = (title, options = {}) => {
+  if (!('Notification' in window)) {
+    console.log('This browser does not support desktop notifications');
+    return null;
+  }
+
+  if (Notification.permission === 'granted') {
+    const notification = new Notification(title, options);
+    return notification;
+  }
+
+  return null;
+};
+
+/**
  * Display a success toast notification
  * @param {string} message - The message to display
  * @param {Object} options - Optional toast configuration options
  */
 export const showSuccess = (message, options = {}) => {
   return toast.success(message, options);
+};
+
+/**
+ * Display a persistent success toast with a funny message that requires manual dismissal
+ * @param {string} message - The message to display
+ * @param {string} funnyMessage - The funny message from OpenAI
+ * @returns {string} - Toast ID that can be used to dismiss the toast
+ */
+export const showPersistentFunnyToast = (funnyMessage) => {
+  return toast.success(
+    <div>
+      {funnyMessage && <p className="font-normal text-sm">{funnyMessage}</p>}
+      <button
+        className="mt-2 px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+        onClick={() => toast.dismiss(toast.id)}
+      >
+        Dismiss
+      </button>
+    </div>,
+    {
+      duration: Infinity, // Toast stays until manually dismissed
+      style: {
+        padding: '16px',
+      },
+    }
+  );
 };
 
 /**

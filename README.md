@@ -32,13 +32,36 @@ A real-time web application that allows users to track and share their stress le
 ### Running with Docker
 
 1. Clone this repository
-2. Build and start the application:
+2. Set up the environment file:
+
+```bash
+cp .env.template .env
+```
+
+3. Edit the `.env` file to update environment variables, especially:
+
+   - `SESSION_SECRET`: Change to a secure random string
+   - `OPENAI_API_KEY`: Add your OpenAI API key
+   - `FRONTEND_URL`: Update if needed
+   - `VITE_API_URL`: Set to match your host/domain
+
+4. Build and start the application:
 
 ```bash
 docker-compose up --build
 ```
 
-3. Access the application at http://localhost:8000
+If you encounter architecture-related errors (especially on ARM-based Macs like M1/M2/M3):
+
+```bash
+# For Docker Compose V2
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker compose up --build
+
+# For Docker Compose V1
+DOCKER_DEFAULT_PLATFORM=linux/amd64 docker-compose up --build
+```
+
+5. Access the application at http://localhost:8000
 
 ### Development Setup
 

@@ -24,8 +24,10 @@ module.exports = {
         : [
             'http://localhost:3000',
             'http://localhost:5173',
+            'http://localhost:8000',
             'http://kod-mac:3000',
             'http://kod-mac:5173',
+            'http://kod-mac:8000',
           ];
 
       if (allowedOrigins.indexOf(origin) !== -1 || !origin) {

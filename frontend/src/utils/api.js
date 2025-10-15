@@ -97,31 +97,37 @@ export const authApi = {
 // Stress API functions
 export const stressApi = {
   recordStress: (level) => {
-    return handleApiWithToast(
-      apiRequest('/stress', {
-        method: 'POST',
-        body: JSON.stringify({ level }),
-      }),
-      {
-        loading: 'Recording stress level...',
-        success: `Stress level ${level} recorded successfully!`,
-        error: 'Failed to record stress level',
-      }
-    );
+    // Use direct API call without toast handling so we can use the funnyMessage
+    return apiRequest('/stress', {
+      method: 'POST',
+      body: JSON.stringify({ level }),
+    })
+      .then((response) => {
+        // Return the response with funnyMessage
+        return response;
+      })
+      .catch((error) => {
+        // Still show error toast
+        showError('Failed to record stress level');
+        throw error;
+      });
   },
 
   recordSuperstress: () => {
-    return handleApiWithToast(
-      apiRequest('/stress/superstress', {
-        method: 'POST',
-        body: JSON.stringify({}), // Add empty JSON object as body
-      }),
-      {
-        loading: 'Recording superstress...',
-        success: 'SUPERSTRESS recorded! Take care of yourself!',
-        error: 'Failed to record superstress',
-      }
-    );
+    // Use direct API call without toast handling so we can use the funnyMessage
+    return apiRequest('/stress/superstress', {
+      method: 'POST',
+      body: JSON.stringify({}), // Add empty JSON object as body
+    })
+      .then((response) => {
+        // Return the response with funnyMessage
+        return response;
+      })
+      .catch((error) => {
+        // Still show error toast
+        showError('Failed to record superstress');
+        throw error;
+      });
   },
 
   getHistory: (date = null) => {

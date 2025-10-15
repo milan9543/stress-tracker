@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import HomePage from './pages/HomePage';
 import SummaryPage from './pages/SummaryPage';
+import GraphPage from './pages/GraphPage';
 import Navigation from './components/layout/Navigation';
 import { Toaster } from 'react-hot-toast';
 
@@ -14,6 +15,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/summary" element={<SummaryPage />} />
+            <Route path="/graph" element={<GraphPage />} />
           </Routes>
           <Toaster
             position="top-right"

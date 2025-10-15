@@ -288,6 +288,29 @@ function StressEntryModel(db) {
         averageStressLevel = sum / latestEntries.length;
       }
 
+      // Get average stress levels for every 15 minutes over the past 24 hours
+      // Using SQLite's strftime to format timestamps into 15-minute intervals
+      const timeBasedAverages = db
+        .prepare(
+          `
+        SELECT 
+          strftime('%Y-%m-%d %H:', created_at) || 
+          CASE 
+            WHEN CAST(strftime('%M', created_at) AS INTEGER) < 15 THEN '00'
+            WHEN CAST(strftime('%M', created_at) AS INTEGER) < 30 THEN '15'
+            WHEN CAST(strftime('%M', created_at) AS INTEGER) < 45 THEN '30'
+            ELSE '45'
+          END AS time_interval,
+          AVG(stress_level) as average_stress,
+          COUNT(*) as entry_count
+        FROM stress_entries
+        WHERE created_at >= datetime('now', '-1 day')
+        GROUP BY time_interval
+        ORDER BY time_interval DESC
+      `
+        )
+        .all();
+
       return {
         users: latestEntries.map((entry) => ({
           userId: entry.user_id,
@@ -297,6 +320,11 @@ function StressEntryModel(db) {
           lastUpdated: entry.created_at,
         })),
         averageStressLevel: averageStressLevel,
+        timeBasedAverages: timeBasedAverages.map((interval) => ({
+          timeInterval: interval.time_interval,
+          averageStress: interval.average_stress,
+          entryCount: interval.entry_count,
+        })),
         lastUpdated: new Date().toISOString(),
       };
     },

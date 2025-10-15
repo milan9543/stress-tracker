@@ -17,7 +17,7 @@ async function stressRoutes(fastify, _options) {
         level: {
           type: 'number',
           minimum: 0,
-          maximum: 200,
+          maximum: 100, // Regular stress level capped at 100
         },
       },
     },
@@ -28,6 +28,7 @@ async function stressRoutes(fastify, _options) {
           id: { type: 'number' },
           stress_level: { type: 'number' },
           created_at: { type: 'string', format: 'date-time' },
+          funnyMessage: { type: 'string' },
         },
       },
       429: {
@@ -41,11 +42,36 @@ async function stressRoutes(fastify, _options) {
     },
   };
 
+  // Import OpenAI service
+  const { generateFunnyMessage } = require('../services/openai');
+
   // Record stress level
   fastify.post('/', { schema: stressSchema }, async (request, reply) => {
     try {
-      const { level } = request.body;
+      let { level } = request.body;
       const userId = request.user.id;
+
+      // Validate and process stress level
+      // Round non-integer values
+      level = Math.round(level);
+
+      // Validate range for regular stress (0-100)
+      if (!Number.isFinite(level)) {
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message: 'Stress level must be a number',
+        });
+      }
+
+      if (level < 0) {
+        level = 0;
+      } else if (level > 100) {
+        return reply.code(400).send({
+          error: 'Bad Request',
+          message:
+            'Regular stress level must be between 0 and 100. Use superstress for higher values.',
+        });
+      }
 
       // Check if the user can submit a stress entry based on cooldown
       const cooldownCheck = fastify.models.StressEntry.canSubmitStressEntry(userId);
@@ -64,11 +90,25 @@ async function stressRoutes(fastify, _options) {
       // Create new stress entry
       const entry = fastify.models.StressEntry.create(userId, level, false);
 
+      // Generate a funny message based on stress level
+      let funnyMessage;
+      try {
+        funnyMessage = await generateFunnyMessage(level, false, request.user.username);
+      } catch (err) {
+        request.log.error(`Error generating OpenAI response: ${err.message}`);
+        funnyMessage =
+          'Feeling stressed? Unfortunately, our AI comedian is also having a tough day. Try again later!';
+      }
+
       // Broadcast stress update via WebSocket
       const { broadcastStressUpdate } = require('../ws/events');
-      broadcastStressUpdate(fastify, entry, request.user);
+      broadcastStressUpdate(fastify, entry, request.user, funnyMessage);
 
-      return entry;
+      // Include funny message in the response
+      return {
+        ...entry,
+        funnyMessage,
+      };
     } catch (err) {
       request.log.error(`Error recording stress: ${err.message}`);
       return reply.code(500).send({
@@ -78,10 +118,37 @@ async function stressRoutes(fastify, _options) {
     }
   });
 
+  // Schema for recording superstress level
+  const superstressSchema = {
+    response: {
+      200: {
+        type: 'object',
+        properties: {
+          id: { type: 'number' },
+          stress_level: { type: 'number' },
+          created_at: { type: 'string', format: 'date-time' },
+          funnyMessage: { type: 'string' },
+        },
+      },
+      429: {
+        type: 'object',
+        properties: {
+          error: { type: 'string' },
+          message: { type: 'string' },
+          remainingTime: { type: 'number' },
+          lastUsed: { type: 'string', format: 'date-time' },
+        },
+      },
+    },
+  };
+
   // Record superstress (max stress level)
-  fastify.post('/superstress', async (request, reply) => {
+  fastify.post('/superstress', { schema: superstressSchema }, async (request, reply) => {
     try {
       const userId = request.user.id;
+
+      // For superstress, the level is always exactly 200
+      const superstressLevel = 200;
 
       // Check if the user can submit a superstress based on cooldown
       const cooldownCheck = fastify.models.StressEntry.canSubmitSuperstress(userId);
@@ -112,14 +179,27 @@ async function stressRoutes(fastify, _options) {
         });
       }
 
-      // Create new superstress entry (max level = 200)
-      const entry = fastify.models.StressEntry.create(userId, 200, true);
+      // Create new superstress entry (always level = 200)
+      const entry = fastify.models.StressEntry.create(userId, superstressLevel, true);
+
+      // Generate a funny message based on superstress
+      let funnyMessage;
+      try {
+        funnyMessage = await generateFunnyMessage(superstressLevel, true, request.user.username);
+      } catch (err) {
+        request.log.error(`Error generating OpenAI response for superstress: ${err.message}`);
+        funnyMessage = 'SUPERSTRESS DETECTED! Maybe try some yoga...or screaming into a pillow?';
+      }
 
       // Broadcast stress update via WebSocket
       const { broadcastStressUpdate } = require('../ws/events');
-      broadcastStressUpdate(fastify, entry, request.user);
+      broadcastStressUpdate(fastify, entry, request.user, funnyMessage);
 
-      return entry;
+      // Include funny message in the response
+      return {
+        ...entry,
+        funnyMessage,
+      };
     } catch (err) {
       request.log.error(`Error recording superstress: ${err.message}`);
       return reply.code(500).send({

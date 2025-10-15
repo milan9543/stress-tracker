@@ -50,7 +50,7 @@ const UserStressLevels = ({ users }) => {
     }
   };
   return (
-    <div className="fixed right-4 top-16 flex flex-col max-w-[240px] overflow-y-auto z-20 backdrop-blur-sm bg-stone-900/30 rounded-lg border border-stone-800/40 shadow-lg">
+    <div className="fixed right-4 top-16 flex flex-col max-w-[240px] overflow-y-auto z-20 backdrop-blur-md bg-stone-900/30 rounded-lg border border-stone-700 shadow-lg">
       <div className="p-4 border-b border-stone-800/40">
         <h3 className="text-stone-300 text-base font-medium">Team Stress Levels</h3>
       </div>

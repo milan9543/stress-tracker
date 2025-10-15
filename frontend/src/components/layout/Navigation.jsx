@@ -32,6 +32,16 @@ function Navigation() {
             >
               Summary
             </Link>
+            <Link
+              to="/graph"
+              className={`transition-colors ${
+                location.pathname === '/graph'
+                  ? 'text-purple-400 font-medium'
+                  : 'text-stone-300 hover:text-purple-300'
+              }`}
+            >
+              Graph
+            </Link>
           </div>
         </div>
       </div>

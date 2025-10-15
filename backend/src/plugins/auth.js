@@ -145,6 +145,7 @@ async function authPlugin(fastify, _options) {
       '/ws/summary', // Public WebSocket summary endpoint
       '/docs', // API documentation
       '/docs/*', // API documentation assets
+      '/api', // API root (health check)
     ];
 
     return publicRoutes.some((route) => {

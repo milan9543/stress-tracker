@@ -31,6 +31,17 @@ async function summaryRoutes(fastify, _options) {
             },
           },
           averageStressLevel: { type: 'number' },
+          timeBasedAverages: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                timeInterval: { type: 'string' },
+                averageStress: { type: 'number' },
+                entryCount: { type: 'number' },
+              },
+            },
+          },
           lastUpdated: { type: 'string', format: 'date-time' },
         },
       },

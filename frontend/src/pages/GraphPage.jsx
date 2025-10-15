@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { summaryApi, createWebSocketConnection } from '../utils/api';
-import { StressLevelContainer } from '../components/layout/StressLevelContainer';
-import QRCode from 'react-qr-code';
-import UserStressLevels from '../components/stress/UserStressLevels';
 import StressChart from '../components/stress/StressChart';
 
-function SummaryPage() {
+function GraphPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
@@ -32,7 +29,7 @@ function SummaryPage() {
 
     ws.onopen = () => {
       setConnectionStatus('connected');
-      console.log('WebSocket connection established for summary page');
+      console.log('WebSocket connection established for graph page');
     };
 
     ws.onmessage = (event) => {
@@ -62,7 +59,7 @@ function SummaryPage() {
 
     ws.onclose = () => {
       setConnectionStatus('disconnected');
-      console.log('WebSocket connection closed for summary page');
+      console.log('WebSocket connection closed for graph page');
     };
 
     // Clean up WebSocket connection on unmount
@@ -74,7 +71,17 @@ function SummaryPage() {
   }, []);
 
   return (
-    <StressLevelContainer level={summary ? summary.averageStressLevel : 0}>
+    <div className="min-h-screen bg-stone-950 text-stone-200 overflow-hidden relative">
+      {/* Background Chart - Full screen, slightly see-through */}
+      {!loading && summary && (
+        <StressChart
+          timeBasedAverages={summary?.timeBasedAverages || []}
+          compact={true}
+          grayScale={true}
+          className="w-full h-full background"
+        />
+      )}
+
       {/* Connection status indicator */}
       <div className="fixed top-4 right-4 flex justify-end mb-4 z-20">
         <div
@@ -93,49 +100,18 @@ function SummaryPage() {
         </div>
       </div>
 
-      {/* QR Code in bottom right corner */}
-      <div className="fixed bottom-4 right-4 flex flex-col items-center z-20 backdrop-blur-md bg-stone-900/30 p-3 rounded-lg border border-stone-700 shadow-lg hover:scale-110 transition-transform">
-        <QRCode
-          value={window.location.href.replace('/summary', '')}
-          size={120}
-          bgColor="rgba(28, 25, 23, 0.7)"
-          fgColor="rgba(214, 211, 209, 0.9)"
-          level="H"
-        />
-        <p className="text-stone-400 text-[10px] mt-2 text-center">Add your stress level!</p>
+      {/* Main chart container */}
+      <div className="w-full h-screen flex flex-col justify-center items-center p-4 relative z-10">
+        {loading ? (
+          <div className="text-stone-400">Loading chart data...</div>
+        ) : (
+          <div className="w-full h-[90vh] p-6 bg-stone-900/30 rounded-lg border border-stone-800/50 backdrop-blur-md">
+            <StressChart timeBasedAverages={summary?.timeBasedAverages || []} />
+          </div>
+        )}
       </div>
-
-      {/* User stress levels panel */}
-      {summary && summary.users && <UserStressLevels users={summary.users} />}
-
-      {summary && !loading && (
-        <div className="flex flex-col items-center">
-          <h1
-            className={`text-[200px] leading-none ${
-              summary.averageStressLevel <= 20
-                ? 'text-green-500'
-                : summary.averageStressLevel <= 40
-                ? 'text-lime-500'
-                : summary.averageStressLevel <= 60
-                ? 'text-yellow-500'
-                : summary.averageStressLevel <= 80
-                ? 'text-amber-500'
-                : summary.averageStressLevel <= 99
-                ? 'text-orange-500'
-                : 'text-red-500'
-            } opacity-50`}
-          >
-            {summary.averageStressLevel.toFixed(2)}%
-          </h1>
-          <p className="text-stone-600 text-xs mt-2 opacity-40 tracking-wide">
-            {summary.lastUpdated
-              ? new Date(summary.lastUpdated).toLocaleString()
-              : 'No update data'}
-          </p>
-        </div>
-      )}
-    </StressLevelContainer>
+    </div>
   );
 }
 
-export default SummaryPage;
+export default GraphPage;

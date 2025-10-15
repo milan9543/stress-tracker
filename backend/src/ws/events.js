@@ -10,8 +10,9 @@
  * @param {Object} fastify - Fastify instance
  * @param {Object} entry - Stress entry data
  * @param {Object} user - User data
+ * @param {string} funnyMessage - Optional funny message from OpenAI
  */
-function broadcastStressUpdate(fastify, entry, user) {
+function broadcastStressUpdate(fastify, entry, user, funnyMessage = null) {
   if (!fastify.ws) {
     fastify.log.warn('WebSocket plugin not available, skipping broadcast');
     return;
@@ -27,6 +28,7 @@ function broadcastStressUpdate(fastify, entry, user) {
       stressLevel: entry.stress_level,
       isSuperstress: entry.is_superstress === 1,
       timestamp: entry.created_at,
+      funnyMessage: funnyMessage, // Add the funny message to the payload
     },
   };
 

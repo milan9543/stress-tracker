@@ -5,7 +5,8 @@
  */
 
 // Get the base URL
-const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const apiBaseUrl = `${baseUrl}/api`;
 
 export default {
   // API configuration
@@ -15,6 +16,6 @@ export default {
 
   // WebSocket configuration
   ws: {
-    url: apiBaseUrl.replace(/^http/, 'ws'),
+    url: `${baseUrl.replace(/^http/, 'ws')}/api`,
   },
 };

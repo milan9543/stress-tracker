@@ -49,9 +49,33 @@ export default function SuperstressButton({ onSubmit }) {
   const handleSuperstress = async () => {
     if (!user || !isAvailable || isSubmitting) return;
 
+    // Get cooldown duration in hours (rounded)
+    const cooldownHours = user?.cooldownDurations?.superstress
+      ? Math.round(user.cooldownDurations.superstress / (60 * 60 * 1000))
+      : 3;
+
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to use SUPERSTRESS? This will set your stress level to maximum (200) and can only be used once every ${cooldownHours} hours.`
+    );
+
+    if (!confirmed) {
+      // User cancelled the operation
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await stressApi.recordSuperstress();
+      const response = await stressApi.recordSuperstress();
+
+      // Check if we received a funny message from OpenAI
+      if (response && response.funnyMessage) {
+        // Import the showPersistentFunnyToast function
+        const { showPersistentFunnyToast } = await import('../../utils/notifications');
+
+        // Show persistent toast with funny message
+        showPersistentFunnyToast(response.funnyMessage);
+      }
 
       // Refresh user data to get updated cooldown information
       await refreshUser();
@@ -87,7 +111,11 @@ export default function SuperstressButton({ onSubmit }) {
       </h2>
 
       <p className="text-stone-400 text-[10px] md:text-xs font-thin">
-        Use this button once every 3 hours when you're experiencing extreme stress levels.
+        Use this button once every{' '}
+        {user?.cooldownDurations?.superstress
+          ? Math.round(user.cooldownDurations.superstress / (60 * 60 * 1000))
+          : 3}{' '}
+        hours when you're experiencing extreme stress levels.
       </p>
 
       <button
