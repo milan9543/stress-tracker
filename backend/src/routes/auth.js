@@ -2,6 +2,8 @@
  * Authentication routes for Stress Tracker application
  */
 
+const { logAuthEvent, getRealClientIp } = require('../utils/logging');
+
 /**
  * Registers authentication-related routes
  * @param {Object} fastify - Fastify instance
@@ -52,7 +54,16 @@ async function authRoutes(fastify, _options) {
   fastify.post('/login', { schema: loginSchema }, async (request, reply) => {
     try {
       const { username } = request.body;
-      const ipAddress = request.ip;
+
+      // Get the real client IP, not the Docker proxy IP
+      const ipAddress = request.realIp || getRealClientIp(request);
+
+      // Store it for future use
+      request.realIp = ipAddress;
+
+      // Log login attempt with real IP address
+      logAuthEvent(fastify.log, 'login_attempt', { username }, ipAddress);
+
       let user;
 
       // Check if this IP is already associated with a different username
@@ -61,6 +72,12 @@ async function authRoutes(fastify, _options) {
         user = fastify.models.User.findOrCreate(username, ipAddress);
 
         if (!user) {
+          logAuthEvent(
+            fastify.log,
+            'login_failed',
+            { username, reason: 'user_creation_failed' },
+            ipAddress
+          );
           return reply.code(500).send({
             error: 'Server Error',
             message: 'Failed to create or find user',
@@ -69,6 +86,12 @@ async function authRoutes(fastify, _options) {
       } catch (err) {
         // If IP is already used by a different username, return an error
         if (err.message.includes('already associated with a different username')) {
+          logAuthEvent(
+            fastify.log,
+            'login_failed',
+            { username, reason: 'ip_already_associated' },
+            ipAddress
+          );
           return reply.code(403).send({
             error: 'Forbidden',
             message: 'This IP address is already associated with a different username',
@@ -76,6 +99,12 @@ async function authRoutes(fastify, _options) {
         }
         // If username is already used by a different IP, return an error
         if (err.message.includes('already associated with a different IP address')) {
+          logAuthEvent(
+            fastify.log,
+            'login_failed',
+            { username, reason: 'username_already_taken' },
+            ipAddress
+          );
           return reply.code(403).send({
             error: 'Forbidden',
             message: 'This username is already taken by someone else',
@@ -96,8 +125,8 @@ async function authRoutes(fastify, _options) {
           reply.setCookie('session', existingSession.token, {
             path: '/',
             httpOnly: true,
-            sameSite: 'none', // Allow cross-origin requests
-            secure: false, // Allow non-secure requests for development
+            sameSite: 'lax', // Use lax for better cross-origin compatibility
+            secure: false, // Allow non-secure cookies for local development
             maxAge: 7 * 24 * 60 * 60, // 7 days
           });
 
@@ -134,15 +163,29 @@ async function authRoutes(fastify, _options) {
         }
       }
 
-      // Create a new session for the user
-      const session = fastify.models.Session.create(user.id, request.ip);
+      // Create a new session for the user with the real IP address
+      const session = fastify.models.Session.create(user.id, ipAddress);
+
+      // Log successful session creation with real IP
+      logAuthEvent(
+        fastify.log,
+        'login_success',
+        {
+          userId: user.id,
+          username: user.username,
+          sessionId: session.id,
+          realIp: ipAddress,
+          rawIp: request.ip,
+        },
+        ipAddress
+      );
 
       // Set the session token as a cookie
       reply.setCookie('session', session.token, {
         path: '/',
         httpOnly: true,
-        sameSite: 'none', // Allow cross-origin requests
-        secure: false, // Allow non-secure requests for development
+        sameSite: 'lax', // Use lax for better cross-origin compatibility
+        secure: false, // Allow non-secure cookies for local development
         maxAge: 7 * 24 * 60 * 60, // 7 days
       });
 
@@ -190,12 +233,30 @@ async function authRoutes(fastify, _options) {
     // Authentication is handled by the preHandler hook in the auth plugin
     // If we get here, it means we have a valid authenticated user
 
+    // Get the real client IP
+    const realIp = request.realIp || getRealClientIp(request);
+
     if (!request.user) {
+      // Log unauthorized access attempts with real IP
+      logAuthEvent(fastify.log, 'unauthorized_access', { endpoint: '/me' }, realIp);
       return reply.code(401).send({
         error: 'Unauthorized',
         message: 'Authentication required',
       });
     }
+
+    // Log successful /me request with user info and real IP
+    logAuthEvent(
+      fastify.log,
+      'me_request',
+      {
+        userId: request.user.id,
+        username: request.user.username,
+        realIp,
+        rawIp: request.ip,
+      },
+      realIp
+    );
 
     // Get timezone offset from query param if provided (in seconds)
     const timezoneOffsetSeconds = request.query.timezoneOffset
@@ -224,6 +285,18 @@ async function authRoutes(fastify, _options) {
     const latestStressEntry = fastify.models.StressEntry.findLatestByUserId(request.user.id);
     const lastStressLevel = latestStressEntry ? latestStressEntry.stress_level : null;
 
+    // Get cooldown durations from config, with fallbacks
+    const cooldownDurations = {
+      superstress:
+        (fastify.config && fastify.config.cooldown && fastify.config.cooldown.superstress) ||
+        24 * 60 * 60 * 1000, // 24 hours fallback
+      stressEntry:
+        (fastify.config && fastify.config.cooldown && fastify.config.cooldown.stressEntry) ||
+        5 * 60 * 1000, // 5 minutes fallback
+    };
+
+    fastify.log.debug(`Using cooldown durations: ${JSON.stringify(cooldownDurations)}`);
+
     return {
       user: {
         id: request.user.id,
@@ -233,18 +306,33 @@ async function authRoutes(fastify, _options) {
       lastStressLevel,
       nextStressUpdateAvailableInSeconds,
       nextSuperStressUpdateAvailableInSeconds,
-      cooldownDurations: {
-        superstress: fastify.config.cooldown.superstress,
-        stressEntry: fastify.config.cooldown.stressEntry,
-      },
+      cooldownDurations,
     };
   });
 
   // Logout route - clears the session
   fastify.post('/logout', async (request, reply) => {
+    // Get the real client IP
+    request.realIp = request.realIp || getRealClientIp(request);
+    const realClientIp = request.realIp;
+
     try {
       // Get token from cookie
       const token = request.cookies.session;
+
+      // Log logout attempt with real IP
+      logAuthEvent(
+        fastify.log,
+        'logout_attempt',
+        {
+          userId: request.user?.id,
+          username: request.user?.username,
+          hasToken: !!token,
+          realIp: realClientIp,
+          rawIp: request.ip,
+        },
+        realClientIp
+      );
 
       // Delete session if token exists
       if (token) {
@@ -254,8 +342,13 @@ async function authRoutes(fastify, _options) {
       // Clear session cookie
       reply.clearCookie('session', { path: '/' });
 
+      // Log successful logout with real IP
+      logAuthEvent(fastify.log, 'logout_success', { realIp: realClientIp }, realClientIp);
+
       return { success: true };
     } catch (error) {
+      // Log error with real IP address (we already have it from above)
+      logAuthEvent(fastify.log, 'logout_error', { error: error.message }, realClientIp);
       fastify.log.error(`Logout error: ${error.message}`);
       return reply.code(500).send({
         error: 'Server Error',

@@ -10,20 +10,30 @@ require('dotenv').config({
 });
 
 const config = require('./config');
+const { requestSerializer, setupRequestLogging } = require('./utils/logging');
 
 // Create Fastify instance with logging configuration
 const fastify = require('fastify')({
+  // Tell Fastify to trust the proxy headers (for Docker environment)
+  trustProxy: config.server.trustProxy,
+
   logger: {
     level: config.logger.level,
-    transport: config.logger.prettyPrint
-      ? {
-          target: 'pino-pretty',
-          options: {
-            translateTime: 'HH:MM:ss Z',
-            ignore: 'pid,hostname',
-          },
-        }
-      : undefined,
+    serializers: {
+      ...config.logger.serializers,
+      // Add our custom request serializer that includes IP address
+      req: requestSerializer,
+    },
+    transport: {
+      target: 'pino-pretty',
+      options: {
+        translateTime: 'HH:MM:ss Z',
+        ignore: 'pid,hostname',
+        singleLine: true,
+        minimumLevel: config.logger.level,
+        errorLikeObjectKeys: ['err', 'error'],
+      },
+    },
   },
 });
 
@@ -32,6 +42,9 @@ fastify.register(require('./plugins'));
 
 // Register all routes
 fastify.register(require('./routes'));
+
+// Setup request logging with IP address
+setupRequestLogging(fastify);
 
 // Start the server
 const start = async () => {

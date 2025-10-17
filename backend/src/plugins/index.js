@@ -14,6 +14,9 @@ const path = require('path');
  * @param {Object} _options - Plugin options (unused)
  */
 async function plugins(fastify, _options) {
+  // Register config plugin first so all other plugins can access it
+  await fastify.register(require('./config'));
+
   // Register core plugins
   await fastify.register(require('@fastify/cors'), config.cors);
 

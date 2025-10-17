@@ -13,14 +13,15 @@ A real-time web application that allows users to track and share their stress le
 
 ## Tech Stack
 
-| Layer         | Technology                           | Notes                                               |
-| ------------- | ------------------------------------ | --------------------------------------------------- |
-| **Backend**   | Node.js + Fastify                    | Handles API, auth, rate limits                      |
-| **Database**  | SQLite                               | Local embedded DB (via `better-sqlite3`)            |
-| **Frontend**  | React + Vite + Tailwind CSS          | Modern lightweight SPA                              |
-| **Charting**  | Chart.js (`react-chartjs-2`)         | Displays stress over time                           |
-| **Real-time** | WebSocket (via `@fastify/websocket`) | Provides live updates of stress levels              |
-| **Container** | Docker (multi-stage build)           | Single container serving both API & static frontend |
+| Layer         | Technology                           | Notes                                            |
+| ------------- | ------------------------------------ | ------------------------------------------------ |
+| **Backend**   | Node.js + Fastify                    | Handles API, auth, rate limits                   |
+| **Database**  | SQLite                               | Local embedded DB (via `better-sqlite3`)         |
+| **Frontend**  | React + Vite + Tailwind CSS          | Modern lightweight SPA                           |
+| **Charting**  | Chart.js (`react-chartjs-2`)         | Displays stress over time                        |
+| **Real-time** | WebSocket (via `@fastify/websocket`) | Provides live updates of stress levels           |
+| **Container** | Docker + Nginx                       | Separate containers for frontend and backend     |
+| **Logging**   | Pino + pino-pretty                   | Single-line, structured logging with IP tracking |
 
 ## Getting Started
 
@@ -45,7 +46,7 @@ cp .env.template .env
    - `FRONTEND_URL`: Update if needed
    - `VITE_API_URL`: Set to match your host/domain
 
-4. Build and start the application:
+4. Build and start the application using the host network mode:
 
 ```bash
 docker-compose up --build
@@ -143,9 +144,24 @@ Various test scripts are available in the backend directory:
 
 The application is containerized using Docker and can be deployed to any environment that supports Docker containers. The Docker setup includes:
 
-- Multi-stage build for optimized image size
+- Multi-stage builds for optimized image sizes
+- Separate containers for frontend and backend
 - Volume for SQLite database persistence
 - Health check for container monitoring
+- Nginx proxy for frontend with proper IP forwarding
+- Trusted proxy configuration for accurate client IP detection
+
+### Client IP Detection in Docker
+
+The application correctly tracks client IP addresses even in a containerized environment by:
+
+1. Using host network mode for containers to access the host's network directly
+2. Setting `trustProxy: true` in Fastify configuration
+3. Configuring Nginx to forward client IPs via X-Forwarded-For headers
+4. Using intelligent IP detection that prioritizes real client IPs over Docker's internal network IPs
+5. Logging both the detected real IP and the raw IP for troubleshooting
+
+The host network mode ensures that containers receive the actual client IPs instead of Docker's internal network addresses, which is crucial for the authentication system which associates usernames with IP addresses.
 
 ## License
 

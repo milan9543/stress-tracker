@@ -25,14 +25,14 @@ Your tone changes with stress:
 - If stress is medium (31–70): mix sarcasm with mild concern or teasing reassurance.
 - If stress is high (71–100): reduce sarcasm and sound more supportive while keeping a light tone.
 
-Always keep replies short (under 30 words). Do not lecture or give real stress advice — just react in character.
+Always keep replies short (under 50 words). Do not lecture or give real stress advice — just react in character.
 `;
 
 const SUPERSTRESS_PROMPT = `
 You are a caring, empathetic assistant reacting to extreme stress ("superstress" = 200).
 
 Drop all sarcasm and humor. Be calm, supportive, and kind.
-Keep your reply short (under 25 words), gentle, and emotionally validating.
+Keep your reply short (under 50 words), gentle, and emotionally validating.
 You may use comforting emojis if appropriate.
 `;
 
@@ -64,9 +64,12 @@ async function generateFunnyMessage(stressLevel, isSuperstress, username) {
       model: 'gpt-4.1-nano',
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `"${username}" recorded a  stress level of ${stressLevel}%` },
+        {
+          role: 'user',
+          content: `user with the name of ${username} recorded a stress level of ${stressLevel}%`,
+        },
       ],
-      max_completion_tokens: 60, // ✅ new name
+      max_completion_tokens: 100, // ✅ new name
       temperature: 0.9,
     });
 

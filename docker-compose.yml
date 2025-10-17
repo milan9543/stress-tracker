@@ -1,25 +1,54 @@
 version: "3.8"
 
 services:
-  stress-tracker:
+  frontend:
     build:
-      context: .
+      context: ./frontend
       dockerfile: Dockerfile
       args:
-        - VITE_API_URL=${VITE_API_URL}
+        - VITE_API_URL=http://kod-mac:8000/api
+    # Use standard port mapping instead of host network for frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    # Connect to the same network as backend
+    networks:
+      - stress-tracker-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     env_file:
-      - ./.env
+      - ./backend/.env.production
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - FRONTEND_URL=http://kod-mac:3000,http://localhost:3000
+      # Force single-line logging
+      - LOG_PRETTY=false
+      # Explicitly enable proxy trust
+      - TRUST_PROXY=true
     ports:
       - "8000:8000"
     volumes:
-      - stress-tracker-data:/app/data
+      # Map the database directory to a local directory for external access
+      - ./db_data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8000"]
       interval: 30s
       timeout: 10s
       retries: 3
+    networks:
+      - stress-tracker-network
 
-volumes:
-  stress-tracker-data:
-    # This creates a named volume for persisting the SQLite database
+networks:
+  stress-tracker-network:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.28.0.0/16

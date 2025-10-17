@@ -6,6 +6,7 @@
  */
 
 const fp = require('fastify-plugin');
+const { logAuthEvent, getRealClientIp } = require('../utils/logging');
 
 /**
  * Authentication plugin for Fastify
@@ -43,6 +44,14 @@ async function authPlugin(fastify, _options) {
   // Hook to extract user from session token in cookie
   fastify.addHook('preHandler', async (request, reply) => {
     try {
+      // Get the real client IP
+      const realIp = request.realIp || getRealClientIp(request);
+
+      // Store it on the request object if not already there
+      if (!request.realIp) {
+        request.realIp = realIp;
+      }
+
       // Skip auth check for public routes
       if (isPublicRoute(request.routerPath)) {
         return;
@@ -52,6 +61,17 @@ async function authPlugin(fastify, _options) {
       const token = request.cookies.session;
 
       if (!token) {
+        // Log authentication failure with real IP
+        logAuthEvent(
+          fastify.log,
+          'auth_failure',
+          {
+            reason: 'no_token',
+            path: request.routerPath,
+          },
+          realIp
+        );
+
         return reply.code(401).send({
           error: 'Unauthorized',
           message: 'Authentication required',
@@ -62,6 +82,17 @@ async function authPlugin(fastify, _options) {
       const session = fastify.models.Session.findByToken(token);
 
       if (!session) {
+        // Log invalid session with real IP
+        logAuthEvent(
+          fastify.log,
+          'auth_failure',
+          {
+            reason: 'invalid_session',
+            token: token.substring(0, 8) + '...', // Log only part of the token for security
+          },
+          request.realIp
+        );
+
         // Clear invalid session cookie
         reply.clearCookie('session');
         return reply.code(401).send({
@@ -70,20 +101,45 @@ async function authPlugin(fastify, _options) {
         });
       }
 
-      // Check if this session belongs to this IP address
-      if (session.ip_address !== request.ip) {
-        fastify.log.warn(`IP mismatch for session: ${session.ip_address} vs ${request.ip}`);
+      // Store the real IP from the request
+      const storedSessionIp = session.ip_address;
+      const currentRealIp = request.realIp;
 
-        // Enhance security by invalidating this session
-        fastify.models.Session.deleteByToken(token);
+      // Compare using the real IP, not Docker's proxy IP
+      if (storedSessionIp !== currentRealIp) {
+        // If IP is from Docker network (192.168.65.x), we're more lenient
+        const isDockerIp =
+          storedSessionIp.startsWith('192.168.65.') || currentRealIp.startsWith('192.168.65.');
 
-        // Clear the cookie
-        reply.clearCookie('session');
+        // Log IP mismatch with both IPs for security monitoring
+        logAuthEvent(
+          fastify.log,
+          'ip_mismatch',
+          {
+            sessionIp: storedSessionIp,
+            currentIp: currentRealIp,
+            rawIp: request.ip,
+            userId: session.user_id,
+            isDockerNetwork: isDockerIp,
+          },
+          currentRealIp
+        );
 
-        return reply.code(401).send({
-          error: 'Unauthorized',
-          message: 'Session IP address mismatch',
-        });
+        // In a production environment, you might want to enforce this check,
+        // but for development and Docker, we'll allow the mismatch
+        if (process.env.STRICT_IP_CHECK === 'true') {
+          // Only enforce if explicitly enabled
+          // Enhance security by invalidating this session
+          fastify.models.Session.deleteByToken(token);
+
+          // Clear the cookie
+          reply.clearCookie('session');
+
+          return reply.code(401).send({
+            error: 'Unauthorized',
+            message: 'Session IP address mismatch',
+          });
+        }
       }
 
       // Check if session has expired (should be caught by DB query, but double check)
@@ -114,7 +170,30 @@ async function authPlugin(fastify, _options) {
       // Add user and session to request
       request.user = user;
       request.session = session;
+
+      // Log successful authentication with real IP and user info (debug level as this happens frequently)
+      logAuthEvent(
+        fastify.log,
+        'auth_success',
+        {
+          userId: user.id,
+          username: user.username,
+          path: request.routerPath,
+        },
+        request.realIp
+      );
     } catch (error) {
+      // Log auth errors with real IP
+      logAuthEvent(
+        fastify.log,
+        'auth_error',
+        {
+          error: error.message,
+          path: request.routerPath,
+        },
+        request.realIp || getRealClientIp(request)
+      );
+
       fastify.log.error(`Auth error: ${error.message}`);
       return reply.code(500).send({
         error: 'Internal Server Error',
@@ -141,11 +220,15 @@ async function authPlugin(fastify, _options) {
     const publicRoutes = [
       '/', // Health check
       '/login', // Login endpoint
+      '/api/login', // Login endpoint with API prefix
       '/summary', // Public summary endpoint
+      '/api/summary', // Public summary endpoint with API prefix
       '/ws/summary', // Public WebSocket summary endpoint
+      '/api/ws/summary', // Public WebSocket summary endpoint with API prefix
       '/docs', // API documentation
       '/docs/*', // API documentation assets
       '/api', // API root (health check)
+      '/api/', // API root with trailing slash
     ];
 
     return publicRoutes.some((route) => {

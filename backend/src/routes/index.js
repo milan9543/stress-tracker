@@ -22,6 +22,9 @@ async function routes(fastify, _options) {
         };
       });
 
+      // IP verification route - useful for debugging IP detection
+      fastify.register(require('./ip'));
+
       // Auth routes
       fastify.register(require('./auth'), { prefix: '' });
 

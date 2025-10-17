@@ -6,7 +6,8 @@
 
 // Get the base URL
 const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-const apiBaseUrl = `${baseUrl}/api`;
+// Check if baseUrl already ends with /api
+const apiBaseUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
 
 export default {
   // API configuration
@@ -16,6 +17,8 @@ export default {
 
   // WebSocket configuration
   ws: {
-    url: `${baseUrl.replace(/^http/, 'ws')}/api`,
+    url: baseUrl.endsWith('/api')
+      ? `${baseUrl.replace(/^http/, 'ws')}`
+      : `${baseUrl.replace(/^http/, 'ws')}/api`,
   },
 };

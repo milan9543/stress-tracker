@@ -61,5 +61,5 @@ ENV STRESS_COOLDOWN_MS=300000
 ENV SUPERSTRESS_COOLDOWN_MS=10800000
 # OpenAI API key should be set at runtime
 
-# Run the application
-CMD ["node", "src/index.js"]
+# Run the application with single-line logging
+CMD ["npm", "run", "start:prod"]

@@ -10,12 +10,13 @@ module.exports = {
   server: {
     port: process.env.PORT || 8000,
     host: process.env.HOST || '0.0.0.0',
+    trustProxy: process.env.TRUST_PROXY === 'true' || true,
   },
 
   // CORS configuration
   cors: {
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
+      // Allow requests with no origin (like mobile apps, curl requests, or WebSockets)
       if (!origin) return callback(null, true);
 
       // Define allowed origins (from env var or defaults)
@@ -29,6 +30,22 @@ module.exports = {
             'http://kod-mac:5173',
             'http://kod-mac:8000',
           ];
+
+      // Log the origin for debugging
+      // Use fastify.log instead of console.log in the actual routes
+      // This will be properly logged by the configured pino logger
+
+      // Always allow WebSocket connections
+      if (origin && (origin.startsWith('ws://') || origin.startsWith('wss://'))) {
+        callback(null, true);
+        return;
+      }
+
+      // In development, allow any origin for easier debugging
+      if (process.env.NODE_ENV !== 'production') {
+        callback(null, true);
+        return;
+      }
 
       if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
         callback(null, true);
@@ -76,6 +93,16 @@ module.exports = {
   // Logging configuration
   logger: {
     level: process.env.LOG_LEVEL || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
-    prettyPrint: process.env.NODE_ENV !== 'production', // Controls whether to use pino-pretty or not
+    prettyPrint: false, // Always use compact, single-line logs
+    serializers: {
+      // Add custom serializers to prevent large objects from expanding into multi-line logs
+      err: (err) => ({
+        type: err.type,
+        message: err.message,
+        stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
+      }),
+      // The req serializer will be set in the index.js file using our custom requestSerializer
+      // This ensures we always include IP address in the logs
+    },
   },
 };
